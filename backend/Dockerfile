@@ -18,7 +18,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 FROM alpine:${ALPINE_VERSION} AS runtime
 
-RUN addgroup -S -g 10001 app \
+RUN apk upgrade --no-cache libcrypto3 libssl3 \
+    && addgroup -S -g 10001 app \
     && adduser -S -D -H -u 10001 -G app app
 
 WORKDIR /app
