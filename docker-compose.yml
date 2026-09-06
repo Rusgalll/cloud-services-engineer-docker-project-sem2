@@ -116,6 +116,61 @@ services:
     networks:
       - frontend
 
+  frontend-dev:
+    profiles:
+      - dev
+    image: momo-frontend-dev:${IMAGE_TAG:-1.0}
+    build:
+      context: ./frontend
+      target: dev
+      args:
+        NODE_VERSION: ${NODE_VERSION:-22}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      backend-lb:
+        condition: service_healthy
+    environment:
+      VUE_APP_API_URL: ${DEV_API_URL:-http://localhost:8081}
+      PUBLIC_PATH: /
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+      - ./frontend/babel.config.js:/app/babel.config.js:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
+      - ./frontend/vue.config.js:/app/vue.config.js:ro
+      - ./frontend/.browserslistrc:/app/.browserslistrc:ro
+    user: "1000:1000"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+    cpus: "1.0"
+    mem_limit: 2g
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=0700,uid=1000,gid=1000
+      - /app/node_modules/.cache:rw,noexec,nosuid,nodev,size=128m,mode=0700,uid=1000,gid=1000
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      start_period: 120s
+      retries: 6
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - frontend
+
 volumes:
   frontend_cache:
 
