@@ -40,13 +40,15 @@ services:
       args:
         NODE_VERSION: ${NODE_VERSION:-22}
         NGINX_TAG: ${NGINX_TAG:-stable-alpine}
-        VUE_APP_API_URL: ${VUE_APP_API_URL:-http://localhost:8081}
+        VUE_APP_API_URL: /api
     ports:
       - "80:8080"
     depends_on:
       backend:
         condition: service_healthy
     user: "101:101"
+    volumes:
+      - frontend_cache:/var/cache/nginx/catalog
     restart: unless-stopped
     stop_grace_period: 15s
     cpus: "0.5"
@@ -72,6 +74,9 @@ services:
         max-file: "3"
     networks:
       - app
+
+volumes:
+  frontend_cache:
 
 networks:
   app:

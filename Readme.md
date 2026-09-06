@@ -44,4 +44,3 @@ docker run -d --name momo-frontend -p 80:8080 momo-frontend:1.0
 ```
 
 Frontend доступен по адресу [http://localhost/momo-store/](http://localhost/momo-store/). Запрос к [http://localhost](http://localhost) перенаправляется на этот путь. Снаружи используется порт `80`, внутри контейнера Nginx слушает `8080`.
-

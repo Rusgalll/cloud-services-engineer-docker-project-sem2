@@ -19,6 +19,11 @@ RUN NODE_OPTIONS=--openssl-legacy-provider npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_TAG} AS runtime
 
+USER 0
+RUN mkdir -p /var/cache/nginx/catalog \
+    && chown 101:101 /var/cache/nginx/catalog \
+    && chmod 0700 /var/cache/nginx/catalog
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist/ /usr/share/nginx/html/momo-store/
 
