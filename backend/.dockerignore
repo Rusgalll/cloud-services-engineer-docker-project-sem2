@@ -1,0 +1,17 @@
+.git
+.idea
+.vscode
+.env
+.env.*
+secrets/
+*.key
+*.pem
+bin/
+dist/
+coverage/
+coverage.out
+*.test
+*.exe
+*.log
+.DS_Store
+Thumbs.db
