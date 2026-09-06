@@ -111,3 +111,79 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: false
           exit-code: "1"
+
+
+  scaling_check:
+    name: Verify backend scaling and load balancing
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+      - name: Start with one backend replica
+        run: docker compose up -d --build --scale backend=1 --wait --wait-timeout 180
+      - name: Check one, three and two replicas
+        shell: bash
+        run: |
+          set -euo pipefail
+          balancer_id=$(docker compose ps -q backend-lb)
+          for replicas in 1 3 2; do
+            docker compose up -d --no-deps --scale backend="$replicas" --wait --wait-timeout 180 backend
+            test "$(docker compose ps -q backend-lb)" = "$balancer_id"
+            mapfile -t backend_ids < <(docker compose ps -q backend)
+            test "${#backend_ids[@]}" -eq "$replicas"
+            docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}:8081' "${backend_ids[@]}" | sort -u > expected-backends.txt
+            matched=false
+            for attempt in {1..15}; do
+              : > actual-backends.txt
+              for ((request=0; request<replicas*4; request++)); do
+                curl --fail --silent --show-error --max-time 5 -D response-headers.txt http://localhost:8081/products -o response.json
+                jq -e '.results | length > 0' response.json > /dev/null
+                awk 'tolower($1) == "x-backend-address:" {gsub("\r", ""); print $2}' response-headers.txt >> actual-backends.txt
+              done
+              sort -u actual-backends.txt -o actual-backends.txt
+              if diff -u expected-backends.txt actual-backends.txt; then
+                matched=true
+                break
+              fi
+              sleep 2
+            done
+            test "$matched" = true
+            curl --fail --silent --show-error --max-time 10 http://localhost/api/categories | jq -e 'type == "array" and length > 0'
+          done
+      - name: Show status
+        if: always()
+        run: docker compose ps --all
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+  load_balancer_security_scan:
+    name: Scan load balancer image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      IMAGE_TAG: ci-${{ github.sha }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+      - name: Build load balancer image
+        run: docker compose build --pull backend-lb
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: momo-backend-lb:ci-${{ github.sha }}
+          format: table
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: "1"
