@@ -6,3 +6,11 @@ dist
 *.log
 npm-debug.log*
 .DS_Store
+.idea
+.vscode
+coverage
+.cache
+secrets/
+*.key
+*.pem
+Thumbs.db
