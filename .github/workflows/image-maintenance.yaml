@@ -1,0 +1,49 @@
+name: Weekly image maintenance
+
+on:
+  schedule:
+    - cron: '0 21 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-maintenance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  rebuild_and_scan:
+    name: Rebuild and scan ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend, backend-lb]
+    env:
+      IMAGE_TAG: maintenance-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+      - name: Validate Docker Compose
+        run: docker compose config --quiet
+      - name: Rebuild with refreshed base images and packages
+        run: docker compose build --pull --no-cache ${{ matrix.service }}
+      - name: Show image size and installed packages
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          docker image inspect "momo-${SERVICE}:${IMAGE_TAG}" --format 'Image: {{.Id}}; size: {{.Size}} bytes'
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint apk "momo-${SERVICE}:${IMAGE_TAG}" list --installed
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: momo-${{ matrix.service }}:maintenance-${{ github.run_id }}-${{ github.run_attempt }}
+          format: table
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: "1"
